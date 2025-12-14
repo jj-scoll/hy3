@@ -1514,6 +1514,39 @@ void Hy3Layout::setTabLock(const CWorkspace* workspace, TabLockMode mode) {
 	node->updateTabBar();
 }
 
+static void equalizeRecursive(Hy3Node* node, bool recursive) {
+	node->size_ratio = 1.0f;
+
+	if (recursive && node->data.is_group()) {
+		for (auto* child: node->data.as_group().children) {
+			equalizeRecursive(child, true);
+		}
+	}
+}
+
+void Hy3Layout::equalize(const CWorkspace* workspace, bool recursive) {
+	auto* focused = this->getWorkspaceFocusedNode(workspace);
+	if (focused == nullptr) return;
+
+	Hy3Node* target = nullptr;
+
+	if (recursive) {
+		target = this->getWorkspaceRootGroup(workspace);
+		if (target != nullptr) {
+			equalizeRecursive(target, true);
+		}
+	} else {
+		if (focused->parent == nullptr) return;
+		auto* parent = focused->parent;
+		equalizeRecursive(parent, false);
+		target = parent;
+	}
+
+	if (target != nullptr) {
+		target->recalcSizePosRecursive();
+	}
+}
+
 void Hy3Layout::warpCursorToBox(const Vector2D& pos, const Vector2D& size) {
 	auto cursorpos = g_pPointerManager->position();
 
