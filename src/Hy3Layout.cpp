@@ -20,6 +20,7 @@
 #include <hyprutils/math/Vector2D.hpp>
 #include <ranges>
 
+#include "log.hpp"
 #include "Hy3Layout.hpp"
 #include "Hy3Node.hpp"
 #include "TabGroup.hpp"
@@ -1155,11 +1156,7 @@ void Hy3Layout::moveNodeToWorkspace(
 			origin_ws->m_monitor->setSpecialWorkspace(nullptr);
 		}
 
-		static const auto allow_workspace_cycles =
-		    ConfigValue<Hyprlang::INT>("binds:allow_workspace_cycles");
-
 		monitor->changeWorkspace(workspace);
-		if (*allow_workspace_cycles) workspace->rememberPrevWorkspace(origin_ws);
 
 		node->parent->recalcSizePosRecursive();
 		node->focus(warp);

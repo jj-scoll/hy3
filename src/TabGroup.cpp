@@ -21,6 +21,7 @@
 #include <pango/pangocairo.h>
 #include <pixman.h>
 
+#include "log.hpp"
 #include "globals.hpp"
 #include "render.hpp"
 

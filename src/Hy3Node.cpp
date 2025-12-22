@@ -10,6 +10,7 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprutils/math/Box.hpp>
 
+#include "log.hpp"
 #include "Hy3Layout.hpp"
 #include "Hy3Node.hpp"
 #include "globals.hpp"
