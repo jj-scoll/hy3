@@ -1,6 +1,6 @@
 # Changelog
 
-# Upcoming
+# hl0.53.0 and before
 
 - Fixed tab bar not being damaged (glitching) on window title change.
 
