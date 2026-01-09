@@ -637,6 +637,8 @@ void Hy3TabGroup::updateWithGroup(Hy3Node& node, bool warp) {
 	if (node.data.as_group().focused_child != nullptr) {
 		this->updateStencilWindows(*node.data.as_group().focused_child);
 	}
+
+	if (this->bar.dirty) this->tick();
 }
 
 void damageBox(const Vector2D* position, const Vector2D* size) {
