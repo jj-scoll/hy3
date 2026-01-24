@@ -641,11 +641,12 @@ void Hy3TabGroup::updateWithGroup(Hy3Node& node, bool warp) {
 	if (this->bar.dirty) this->tick();
 }
 
-void damageBox(const Vector2D* position, const Vector2D* size) {
+void Hy3TabBar::damageBox(const Vector2D* position, const Vector2D* size) {
 	auto box = CBox {position->x, position->y, size->x, size->y};
 	// Either a rounding error or an issue below makes this necessary.
 	box.expand(1);
 	g_pHyprRenderer->damageBox(box);
+	this->damaged = true;
 }
 
 void Hy3TabGroup::tick() {
@@ -681,22 +682,21 @@ void Hy3TabGroup::tick() {
 			// tick, cleaning up after ourselves
 			auto pos = this->last_pos + this->last_workspace_offset;
 			auto size = this->last_size;
-			damageBox(&pos, &size);
+			this->bar.damageBox(&pos, &size);
 
 			// Then we damage the current position of the bar, to avoid seeing
 			// glitches with animations disabled
 			pos = this->pos->value() + workspaceOffset;
 			size = this->size->value();
-			damageBox(&pos, &size);
+			this->bar.damageBox(&pos, &size);
 
-			this->bar.damaged = true;
 			this->last_workspace_offset = workspaceOffset;
 		}
 
 		if (this->workspace->m_alpha->isBeingAnimated()) {
 			auto pos = this->pos->value();
 			auto size = this->size->value();
-			damageBox(&pos, &size);
+			this->bar.damageBox(&pos, &size);
 		}
 	}
 
@@ -704,9 +704,7 @@ void Hy3TabGroup::tick() {
 	auto size = this->size->value();
 
 	if (this->last_pos != pos || this->last_size != size) {
-		damageBox(&this->last_pos, &this->last_size);
-
-		this->bar.damaged = true;
+		this->bar.damageBox(&this->last_pos, &this->last_size);
 		this->last_pos = pos;
 		this->last_size = size;
 	}
@@ -718,9 +716,7 @@ void Hy3TabGroup::tick() {
 			pos.y -= *padding;
 		}
 
-		damageBox(&pos, &size);
-
-		this->bar.damaged = true;
+		this->bar.damageBox(&pos, &size);
 		this->bar.dirty = false;
 	}
 }
@@ -787,10 +783,11 @@ void Hy3TabGroup::renderTabBar() {
 	}
 
 	if (render_stencil) {
+		g_pHyprOpenGL->m_renderData.currentFB->bind();
 		glEnable(GL_STENCIL_TEST);
+		glStencilMask(0xff);
 		glClearStencil(0);
 		glClear(GL_STENCIL_BUFFER_BIT);
-		glStencilMask(0xff);
 		glStencilFunc(GL_ALWAYS, 1, 0xff);
 		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
 
@@ -807,11 +804,14 @@ void Hy3TabGroup::renderTabBar() {
 			auto wsize = window->m_realSize->value();
 
 			CBox window_box = {wpos.x, wpos.y, wsize.x, wsize.y};
+			auto border = window->getRealBorderSize();
+			auto radius = *window_rounding + border;
+			window_box.expand(border);
 			// scaleBox(&window_box, scale);
 			window_box.scale(scale);
 
 			if (window_box.width > 0 && window_box.height > 0)
-				g_pHyprOpenGL->renderRect(window_box, CHyprColor(0, 0, 0, 0), { .round = *window_rounding });
+				g_pHyprOpenGL->renderRect(window_box, CHyprColor(0, 0, 0, 0), { .round = radius });
 		}
 
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
@@ -857,9 +857,9 @@ void Hy3TabGroup::renderTabBar() {
 
 	if (render_stencil) {
 		glClearStencil(0);
+		glStencilMask(0xff);
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glDisable(GL_STENCIL_TEST);
-		glStencilMask(0xff);
 		glStencilFunc(GL_ALWAYS, 1, 0xff);
 	}
 }

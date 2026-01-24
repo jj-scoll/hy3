@@ -85,6 +85,7 @@ public:
 
 	Hy3TabBar();
 	void beginDestroy();
+	void damageBox(const Vector2D* position, const Vector2D* size);
 
 	void tick();
 	void updateNodeList(std::list<Hy3Node*>& nodes);
