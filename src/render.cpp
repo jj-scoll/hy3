@@ -3,6 +3,7 @@
 #include <GLES2/gl2.h>
 #include <hyprland/src/helpers/math/Math.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/render/Shader.hpp>
 #include <hyprutils/math/Box.hpp>
 #include <hyprutils/math/Misc.hpp>
 #include <hyprutils/math/Vector2D.hpp>
@@ -35,7 +36,7 @@ void Hy3Render::renderTab(
 
 	auto glMatrix = rdata.projection.copy().multiply(matrix);
 
-	g_pHyprOpenGL->useProgram(shader.program);
+	g_pHyprOpenGL->useShader(shader.program);
 
 #ifndef GLES2
 	glUniformMatrix3fv(shader.proj, 1, GL_TRUE, glMatrix.getMatrix().data());
@@ -85,12 +86,9 @@ void Hy3Render::renderTab(
 	glUniform1f(shader.outerRadius, radius);
 	glUniform1f(shader.borderWidth, borderWidth);
 
-	glVertexAttribPointer(shader.posAttrib, 2, GL_FLOAT, GL_FALSE, 0, fullVerts);
-	glEnableVertexAttribArray(shader.posAttrib);
-
+	glBindVertexArray(shader.program->getUniformLocation(SHADER_SHADER_VAO));
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-
-	glDisableVertexAttribArray(shader.posAttrib);
+	glBindVertexArray(0);
 
 	if (blur) {
 		glBindTexture(blurTex->m_target, 0);

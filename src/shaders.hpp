@@ -2,12 +2,12 @@
 
 #include <GLES2/gl2.h>
 #include <hyprland/src/render/OpenGL.hpp>
+#include <hyprland/src/render/Shader.hpp>
 
 class Hy3Shaders {
 public:
 	struct {
-		GLuint program;
-		GLuint posAttrib;
+		SP<CShader> program;
 		GLint proj;
 		GLint monitorSize;
 		GLint pixelOffset;
@@ -25,5 +25,4 @@ public:
 
 private:
 	Hy3Shaders();
-	~Hy3Shaders();
 };
