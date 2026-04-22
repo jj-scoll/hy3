@@ -865,7 +865,16 @@ void Hy3TabGroup::renderTabBar() {
 }
 
 std::vector<UP<IPassElement>> Hy3TabPassElement::draw() {
+	// Enable the monitor transform flag so renderRect/renderTexture calls inside
+	// renderTabBar() apply the monitor's output rotation via monitorProjection.
+	// Without this, the flag defaults to false for plugin render passes and
+	// logical-space coords render at pre-transform framebuffer positions —
+	// causing the tab bar to appear on the visual side edge of rotated monitors.
+	// The existing explicit-transform projectBoxToTarget() call in Hy3Render::renderTab
+	// is unaffected because it passes an explicit eTransform, which bypasses the flag.
+	g_pHyprRenderer->pushMonitorTransformEnabled(true);
 	this->group->renderTabBar();
+	g_pHyprRenderer->popMonitorTransformEnabled();
 	return {};
 }
 
