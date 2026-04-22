@@ -34,12 +34,13 @@ void Hy3Render::renderTab(
 	const auto& monitorSize = rdata.pMonitor->m_transformedSize;
 	auto monitorBox = CBox {Vector2D(), monitorSize};
 
-	// Use NORMAL transform so projectBoxToTarget delegates rotation to m_projMatrix,
-	// which correctly maps logical coords to physical framebuffer space for all transforms.
-	auto glMatrix = g_pHyprRenderer->projectBoxToTarget(
-	    monitorBox,
-	    Hyprutils::Math::HYPRUTILS_TRANSFORM_NORMAL
+	const auto monitor_inverted = Math::wlTransformToHyprutils(
+			Math::invertTransform(g_pHyprRenderer->m_renderData.pMonitor->m_transform)
 	);
+
+	Hyprutils::Math::eTransform transform = monitor_inverted;
+
+	auto glMatrix = g_pHyprRenderer->projectBoxToTarget(monitorBox, transform);
 
 	g_pHyprOpenGL->useShader(shader.program);
 
