@@ -282,6 +282,14 @@ void Hy3TabBarEntry::renderText(float scale, CBox& box, float opacity) {
 
 		auto* font_map = pango_cairo_font_map_get_default();
 		auto* context = pango_font_map_create_context(font_map);
+
+		// Force grayscale antialiasing — subpixel (LCD) assumes horizontal RGB subpixel
+		// order which is wrong on rotated monitors where subpixels are vertical.
+		auto* font_options = cairo_font_options_create();
+		cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_GRAY);
+		pango_cairo_context_set_font_options(context, font_options);
+		cairo_font_options_destroy(font_options);
+
 		auto* layout = pango_layout_new(context);
 		pango_layout_set_text(layout, this->window_title.c_str(), -1);
 
