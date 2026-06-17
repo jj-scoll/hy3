@@ -282,14 +282,6 @@ void Hy3TabBarEntry::renderText(float scale, CBox& box, float opacity) {
 
 		auto* font_map = pango_cairo_font_map_get_default();
 		auto* context = pango_font_map_create_context(font_map);
-
-		// Force grayscale antialiasing — subpixel (LCD) assumes horizontal RGB subpixel
-		// order which is wrong on rotated monitors where subpixels are vertical.
-		auto* font_options = cairo_font_options_create();
-		cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_GRAY);
-		pango_cairo_context_set_font_options(context, font_options);
-		cairo_font_options_destroy(font_options);
-
 		auto* layout = pango_layout_new(context);
 		pango_layout_set_text(layout, this->window_title.c_str(), -1);
 
@@ -311,7 +303,12 @@ void Hy3TabBarEntry::renderText(float scale, CBox& box, float opacity) {
 
 		auto ink_x = PANGO_PIXELS(ink_extents.x);
 		auto ink_y = PANGO_PIXELS(ink_extents.y);
-		auto ink_width = PANGO_PIXELS(ink_extents.width);
+		// Round width up to multiple of 4 so cairo's ARGB32 stride
+		// (padded to 8-byte alignment) always equals width*4. Without this,
+		// odd widths add 4 bytes of row padding that Hyprland's createTexture()
+		// doesn't account for, producing a 1-pixel-per-row diagonal skew —
+		// invisible on landscape but a visible horizontal smear on rotated outputs.
+		auto ink_width = (PANGO_PIXELS(ink_extents.width) + 3) & ~3;
 		auto ink_height = PANGO_PIXELS(ink_extents.height);
 
 		this->last_render.logical_width = PANGO_PIXELS(logical_extents.width);
@@ -324,6 +321,20 @@ void Hy3TabBarEntry::renderText(float scale, CBox& box, float opacity) {
 
 		auto cairo_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ink_width, ink_height);
 		auto cairo = cairo_create(cairo_surface);
+
+		// Subpixel LCD AA assumes horizontal RGB subpixel order; wrong on rotated
+		// monitors where subpixels are vertical. Force grayscale so all outputs are
+		// consistent and correct. Must set on the cairo object (not just the pango
+		// context) because pango_cairo_update_layout re-syncs from cairo's options.
+		// Also disable hinting — pixel-grid snapping is wrong direction on rotated
+		// outputs (glyph hinted for horizontal display shown on vertical pixel grid),
+		// which produces blurred or warped thin strokes like `~` after GL sampling.
+		auto* font_options = cairo_font_options_create();
+		cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_GRAY);
+		cairo_font_options_set_hint_style(font_options, CAIRO_HINT_STYLE_NONE);
+		cairo_font_options_set_hint_metrics(font_options, CAIRO_HINT_METRICS_OFF);
+		cairo_set_font_options(cairo, font_options);
+		cairo_font_options_destroy(font_options);
 
 		cairo_save(cairo);
 		cairo_set_operator(cairo, CAIRO_OPERATOR_CLEAR);
@@ -350,7 +361,13 @@ void Hy3TabBarEntry::renderText(float scale, CBox& box, float opacity) {
 	auto x_offset =
 	    *text_center ? box.w * 0.5 - this->last_render.logical_width * 0.5 : *text_padding;
 
-	auto y_offset = box.h * 0.5 - this->last_render.logical_height * 0.5;
+	// Center by the ink rectangle's height, not pango's logical height — logical
+	// height includes leading/line-spacing so using it leaves text visually high
+	// inside the tab. Subtracting texture_y_offset cancels the ink_y shift that
+	// gets added back at texture_box.y below, so the ink box ends up
+	// geometrically centered in the tab.
+	auto y_offset = box.h * 0.5 - this->last_render.texture_height * 0.5
+	                - this->last_render.texture_y_offset;
 
 	auto texture_box = CBox {
 	    box.x + x_offset + this->last_render.texture_x_offset,
@@ -880,9 +897,11 @@ std::vector<UP<IPassElement>> Hy3TabPassElement::draw() {
 	// causing the tab bar to appear on the visual side edge of rotated monitors.
 	// The existing explicit-transform projectBoxToTarget() call in Hy3Render::renderTab
 	// is unaffected because it passes an explicit eTransform, which bypasses the flag.
-	g_pHyprRenderer->pushMonitorTransformEnabled(true);
+	// Do NOT wrap with pushMonitorTransformEnabled(true) on Hyprland 0.54.0 —
+	// the BG already positions correctly, and the push causes renderTexture to
+	// draw the text texture rotated 90° on outputs with transform != 0 (visible
+	// as unreadable glyphs or horizontal streaks, depending on tab width).
 	this->group->renderTabBar();
-	g_pHyprRenderer->popMonitorTransformEnabled();
 	return {};
 }
 
