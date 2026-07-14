@@ -8,23 +8,27 @@
 #include <hyprland/src/output/Monitor.hpp>
 #include <hyprland/src/state/WorkspaceState.hpp>
 #include <hyprland/src/state/MonitorState.hpp>
+#include <hyprland/src/desktop/state/GlobalWindowController.hpp>
 #include <hyprland/src/desktop/state/FocusState.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/desktop/rule/Engine.hpp>
-#include <hyprland/src/managers/PointerManager.hpp>
 #include <hyprland/src/managers/SeatManager.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/pointer/PointerController.hpp>
+#include <hyprland/src/pointer/PointerManager.hpp>
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/plugins/PluginSystem.hpp>
 #include <hyprland/src/xwayland/XWayland.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprutils/math/Vector2D.hpp>
+#include <hyprland/src/config/shared/ConfigErrors.hpp>
+#include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
 #include <ranges>
 
-#include "config/shared/ConfigErrors.hpp"
-#include "config/shared/complex/ComplexDataTypes.hpp"
 #include "log.hpp"
 #include "Hy3Layout.hpp"
 #include "Hy3Node.hpp"
@@ -50,7 +54,7 @@ PHLWORKSPACE workspace_for_action(bool allow_fullscreen) {
 	if (!valid(workspace)) workspace = Desktop::focusState()->monitor()->m_activeWorkspace;
 
 	if (!valid(workspace)) return nullptr;
-	if (!allow_fullscreen && workspace->m_hasFullscreenWindow) return nullptr;
+	if (!allow_fullscreen && Fullscreen::controller()->hasFullscreen(workspace)) return nullptr;
 	if (!hy3InstanceForWorkspace(workspace)) return nullptr;
 
 	return workspace;
@@ -110,7 +114,7 @@ Hy3Layout::Hy3Layout() {
 
 		    auto view = ptr_surface->view();
 		    auto* window = dynamic_cast<Desktop::View::CWindow*>(view.get());
-		    if (!window || window->m_isFloating || window->isFullscreen()) return;
+		    if (!window || window->m_isFloating || Fullscreen::controller()->isFullscreen(window->m_self.lock())) return;
 
 		    auto* node = this->getNodeFromWindow(window);
 		    if (!node) return;
@@ -221,10 +225,8 @@ void Hy3Layout::insertNode(UP<Hy3Node> node_up, std::optional<Vector2D> focalPoi
 
 	if (rootNode != nullptr) {
 		if (focalPoint) {
-			auto window_at_point = g_pCompositor->vectorToWindowUnified(
-			    *focalPoint,
-			    RESERVED_EXTENTS | INPUT_EXTENTS
-			);
+			auto window_at_point =
+					Desktop::viewState()->hitTest().windowAt(*focalPoint, RESERVED_EXTENTS | INPUT_EXTENTS);
 
 			if (window_at_point && window_at_point->m_workspace == ws) {
 				opening_after = this->getNodeFromWindow(window_at_point.get());
@@ -598,7 +600,7 @@ PHLWINDOW Hy3Layout::findTiledWindowCandidate(const CWindow* from) {
 
 PHLWINDOW Hy3Layout::findFloatingWindowCandidate(const CWindow* from) {
 	// return the first floating window on the same workspace that has not asked not to be focused
-	for (auto& w: g_pCompositor->m_windows | std::views::reverse) {
+	for (const auto& w: Desktop::windowState()->windows() | std::views::reverse) {
 		if (w->m_isMapped && !w->isHidden() && w->m_isFloating && !w->isX11OverrideRedirect()
 		    && w->m_workspace == from->m_workspace && !w->m_X11ShouldntFocus
 		    && !w->m_ruleApplicator->noFocus().valueOrDefault() && w.get() != from)
@@ -791,18 +793,20 @@ void Hy3Layout::shiftFocus(
 	auto current_window = Desktop::focusState()->window();
 
 	if (current_window != nullptr) {
-		if (current_window->m_workspace->m_hasFullscreenWindow) {
+		if (Fullscreen::controller()->hasFullscreen(current_window->m_workspace)) {
 			return;
 		}
 
 		if (current_window->m_isFloating) {
-			auto next_window =
-			    g_pCompositor->getWindowInDirection(current_window, shiftToMathDirection(direction));
+			auto next_window = Desktop::windowState()->query().inDirection(
+			    current_window,
+			    shiftToMathDirection(direction)
+			);
 
 			if (next_window != nullptr) {
 				g_pInputManager->unconstrainMouse();
 				Desktop::focusState()->fullWindowFocus(next_window, Desktop::FOCUS_REASON_KEYBIND);
-				if (warp) Hy3Layout::warpCursorToBox(next_window->m_position, next_window->m_size);
+				if (warp) Hy3Layout::warpCursorToBox(next_window->m_reportedPosition, next_window->m_reportedSize);
 			}
 			return;
 		}
@@ -965,10 +969,10 @@ void Hy3Layout::moveNodeToWorkspace(
 	}
 
 	if (focused_window != nullptr
-	    && (focused_window_node == nullptr || focused_window->isFullscreen()))
+	    && (focused_window_node == nullptr || Fullscreen::controller()->isFullscreen(focused_window)))
 	{
 		g_pHyprRenderer->damageWindow(focused_window);
-		g_pCompositor->moveWindowToWorkspaceSafe(focused_window, workspace);
+		Desktop::globalWindowController()->moveWindowToWorkspace(focused_window, workspace);
 	} else {
 		if (node == nullptr) return;
 
@@ -1364,7 +1368,7 @@ void Hy3Layout::equalize(const CWorkspace* workspace, bool recursive) {
 }
 
 void Hy3Layout::warpCursorToBox(const Vector2D& pos, const Vector2D& size) {
-	auto cursorpos = g_pPointerManager->position();
+	auto cursorpos = Pointer::mgr()->position();
 
 	if (cursorpos.x < pos.x || cursorpos.x >= pos.x + size.x || cursorpos.y < pos.y
 	    || cursorpos.y >= pos.y + size.y)
@@ -1377,7 +1381,7 @@ void Hy3Layout::warpCursorWithFocus(const Vector2D& target, bool force) {
 	static const auto input_follows_mouse = CConfigValue<Config::INTEGER>("input:follow_mouse");
 	static const auto no_warps = CConfigValue<Config::INTEGER>("cursor:no_warps");
 
-	g_pCompositor->warpCursorTo(target, force);
+	Pointer::pointerController()->warpTo(target, force);
 
 	if (*no_warps && !force) return;
 
@@ -1637,7 +1641,9 @@ Hy3Node* Hy3Layout::shiftOrGetFocus(
 		// special cased to prevent size being reset to 1 on group break
 		auto shift_parent = shift_actor->parent;
 		auto shift_actor_u = shift_parent->as_group().extractChildRaw(*shift_actor);
-		auto iter = std::ranges::find(group_data.children, shift_parent);
+		auto iter = std::ranges::find_if(group_data.children, [&](const auto& other) {
+			return other == shift_parent;
+		});
 		group_data.replaceChild(iter, std::move(shift_actor_u));
 	} else {
 		auto target_group_p = target_group->self;

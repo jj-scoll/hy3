@@ -9,6 +9,7 @@
 #include <hyprutils/string/VarList.hpp>
 #include <hyprland/src/config/lua/LuaBindings.hpp>
 #include <hyprland/src/config/lua/bindings/LuaBindingsInternal.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 
 #include "dispatchers.hpp"
 #include "log.hpp"
@@ -323,7 +324,8 @@ static SDispatchResult moveFocus(ShiftDirection shift, bool visible, std::option
 
 	static const auto no_cursor_warps = CConfigValue<Config::INTEGER>("cursor:no_warps");
 	auto warp_cursor = warp_override.value_or(!*no_cursor_warps);
-	if (ws->m_hasFullscreenWindow) {
+
+	if (Fullscreen::controller()->hasFullscreen(ws)) {
 		hy3->focusMonitor(shift);
 		return SDispatchResult {};
 	}

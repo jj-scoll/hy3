@@ -10,8 +10,9 @@
 #include <hyprland/src/plugins/PluginAPI.hpp>
 #include <hyprland/src/config/shared/workspace/WorkspaceRuleManager.hpp>
 #include <hyprutils/math/Box.hpp>
+#include <hyprland/src/config/shared/complex/ComplexDataTypes.hpp>
+#include <hyprland/src/desktop/state/WindowState.hpp>
 
-#include "config/shared/complex/ComplexDataTypes.hpp"
 #include "log.hpp"
 #include "Hy3Layout.hpp"
 #include "Hy3Node.hpp"
@@ -240,13 +241,13 @@ void Hy3Node::focus(bool warp, Desktop::eFocusReason reason) {
 		auto window = this->as_window();
 		window->setHidden(false);
 		Desktop::focusState()->fullWindowFocus(window, reason);
-		if (warp) Hy3Layout::warpCursorToBox(window->m_position, window->m_size);
+		if (warp) Hy3Layout::warpCursorToBox(window->m_reportedPosition, window->m_reportedSize);
 		break;
 	}
 	case Hy3NodeType::Group: {
 		Desktop::focusState()->resetWindowFocus();
 		for (auto& window: this->windows()) {
-			g_pCompositor->changeWindowZOrder(window.m_self.lock(), true);
+			Desktop::windowState()->raise(window.m_self.lock());
 		}
 
 		if (warp) Hy3Layout::warpCursorToBox(this->visualBox.pos(), this->visualBox.size());
@@ -490,7 +491,7 @@ void Hy3Node::recalcSizePosRecursive(CBox offsets, bool no_animation) {
 // Find the visible window with the highest z-order in this subtree.
 static CWindow* findTopVisibleWindow(Hy3Node& node) {
 	CWindow* result = nullptr;
-	auto& compositor_windows = g_pCompositor->m_windows;
+	const auto& compositor_windows = Desktop::windowState()->windows();
 	auto it = compositor_windows.begin();
 	for (auto& window: node.windows(true)) {
 		for (auto search = it; search != compositor_windows.end(); ++search) {

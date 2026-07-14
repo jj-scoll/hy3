@@ -12,8 +12,9 @@
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
 #include <hyprland/src/helpers/Color.hpp>
-#include <hyprland/src/managers/animation/AnimationManager.hpp>
+#include <hyprland/src/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
+#include <hyprland/src/managers/fullscreen/FullscreenController.hpp>
 #include <hyprland/src/render/OpenGL.hpp>
 #include <hyprland/src/render/Texture.hpp>
 #include <hyprland/src/config/shared/animation/AnimationTree.hpp>
@@ -51,56 +52,57 @@ CHyprColor merge_colors(Args... colors) {
 }
 
 Hy3TabBarEntry::Hy3TabBarEntry(Hy3TabBar& tab_bar, Hy3Node& node): tab_bar(tab_bar), node(&node) {
-	g_pAnimationManager->createAnimation(
+	auto& mgr = Animation::mgr();
+	mgr->createAnimation(
 	    0.0F,
 	    this->active,
 	    Config::animationTree()->getAnimationPropertyConfig("fadeSwitch"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    0.0F,
 	    this->focused,
 	    Config::animationTree()->getAnimationPropertyConfig("fadeSwitch"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    0.0F,
 	    this->urgent,
 	    Config::animationTree()->getAnimationPropertyConfig("fadeSwitch"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    0.0F,
 	    this->active_monitor,
 	    Config::animationTree()->getAnimationPropertyConfig("fadeSwitch"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    -1.0F,
 	    this->offset,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    -1.0F,
 	    this->width,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    1.0F,
 	    this->vertical_pos,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    0.0F,
 	    this->fade_opacity,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
@@ -396,14 +398,15 @@ CHyprColor Hy3TabBarEntry::mergeColors(
 }
 
 Hy3TabBar::Hy3TabBar() {
-	g_pAnimationManager->createAnimation(
+	auto& mgr = Animation::mgr();
+	mgr->createAnimation(
 	    1.0f,
 	    this->fade_opacity,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    0.0F,
 	    this->locked,
 	    Config::animationTree()->getAnimationPropertyConfig("fadeSwitch"),
@@ -585,14 +588,16 @@ Hy3TabGroupWrapper& Hy3TabGroupWrapper::operator=(UP<Hy3TabGroup> tg) {
 }
 
 Hy3TabGroup::Hy3TabGroup(Hy3Node& node) {
-	g_pAnimationManager->createAnimation(
+	auto& mgr = Animation::mgr();
+
+	mgr->createAnimation(
 	    Vector2D(0, 0),
 	    this->pos,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
 	    AVARDAMAGE_NONE
 	);
 
-	g_pAnimationManager->createAnimation(
+	mgr->createAnimation(
 	    Vector2D(0, 0),
 	    this->size,
 	    Config::animationTree()->getAnimationPropertyConfig("windowsMove"),
@@ -651,7 +656,7 @@ void Hy3TabGroup::tick() {
 	this->bar.tick();
 
 	if (valid(this->workspace) && this->workspace->m_monitor) {
-		auto has_fullscreen = this->workspace->m_hasFullscreenWindow;
+		auto has_fullscreen = Fullscreen::controller()->hasFullscreen(this->workspace);
 
 		if (!has_fullscreen && *no_gaps_when_only) {
 			auto* hy3 = hy3InstanceForWorkspace(this->workspace);
