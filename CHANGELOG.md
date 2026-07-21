@@ -1,5 +1,9 @@
 # Changelog
 
+# hl0.56.0 and before
+
+- Only compatibility fixes.
+
 # hl0.55.0 and before
 
 - Fixed a crash when using locked opaque tabs.
