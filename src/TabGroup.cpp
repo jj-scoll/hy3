@@ -11,6 +11,7 @@
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/desktop/DesktopTypes.hpp>
 #include <hyprland/src/desktop/Workspace.hpp>
+#include <hyprland/src/desktop/view/types/Geometric.hpp>
 #include <hyprland/src/helpers/Color.hpp>
 #include <hyprland/src/animation/AnimationManager.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
@@ -31,6 +32,7 @@
 #include "render/pass/PassElement.hpp"
 
 using Hyprgraphics::CColor;
+using Desktop::View::IGeometric;
 
 // This is a workaround CHyprColor not having working arithmetic operator...
 template <typename... Args>
@@ -796,11 +798,10 @@ void Hy3TabGroup::renderTabBar() {
 			if (!valid(windowref)) continue;
 			auto window = windowref.lock();
 
-			auto wpos =
-			    window->m_realPosition->value() - monitor->m_position
-			    + (window->m_workspace ? window->m_workspace->m_renderOffset->value() : Vector2D());
+			auto wpos = window->position(IGeometric::GEOMETRIC_CURRENT) - monitor->m_position
+			          + (window->m_workspace ? window->m_workspace->m_renderOffset->value() : Vector2D());
 
-			auto wsize = window->m_realSize->value();
+			auto wsize = window->size(IGeometric::GEOMETRIC_CURRENT);
 
 			CBox window_box = {wpos.x, wpos.y, wsize.x, wsize.y};
 			auto border = window->getRealBorderSize();
